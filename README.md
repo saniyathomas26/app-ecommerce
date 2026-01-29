@@ -1,67 +1,179 @@
-🧩 Tech Stack
+# Introduction
 
-OS: CentOS Web Server: Apache (httpd) Backend: PHP Database: MariaDB Version Control: Git Firewall: firewalld
+This is a sample e-commerce application built for learning purposes.
 
-🚀 Deployment Guide (CentOS)
+Here's how to deploy it on CentOS systems:
 
-1️⃣ Install and Enable FirewallD sudo yum install -y firewalld sudo systemctl start firewalld sudo systemctl enable firewalld sudo systemctl status firewalld
+## Deploy Pre-Requisites
 
-🗄️ Database Setup (MariaDB) sudo yum install -y mariadb-server sudo systemctl start mariadb sudo systemctl enable mariadb
+1. Install FirewallD
 
-Open Database Port sudo firewall-cmd --permanent --zone=public --add-port=3306/tcp sudo firewall-cmd --reload
+```
+sudo yum install -y firewalld
+sudo systemctl start firewalld
+sudo systemctl enable firewalld
+sudo systemctl status firewalld
+```
 
-📌 Create Database and User sudo mysql
+## Deploy and Configure Database
 
-CREATE DATABASE ecomdb; CREATE USER 'ecomuser'@'localhost' IDENTIFIED BY 'ecompassword'; GRANT ALL PRIVILEGES ON . TO 'ecomuser'@'localhost'; FLUSH PRIVILEGES;
+1. Install MariaDB
 
-📦 Create the SQL script:
+```
+sudo yum install -y mariadb-server
+sudo vi /etc/my.cnf
+sudo systemctl start mariadb
+sudo systemctl enable mariadb
+```
 
-cat > db-load-script.sql <<-EOF USE ecomdb; CREATE TABLE products (id mediumint(8) unsigned NOT NULL auto_increment,Name varchar(255) default NULL,Price varchar(255) default NULL, ImageUrl varchar(255) default NULL,PRIMARY KEY (id)) AUTO_INCREMENT=1;
+2. Configure firewall for Database
+
+```
+sudo firewall-cmd --permanent --zone=public --add-port=3306/tcp
+sudo firewall-cmd --reload
+```
+
+3. Configure Database
+
+```
+$ mysql
+MariaDB > CREATE DATABASE ecomdb;
+MariaDB > CREATE USER 'ecomuser'@'localhost' IDENTIFIED BY 'ecompassword';
+MariaDB > GRANT ALL PRIVILEGES ON *.* TO 'ecomuser'@'localhost';
+MariaDB > FLUSH PRIVILEGES;
+```
+
+> ON a multi-node setup remember to provide the IP address of the web server here: `'ecomuser'@'web-server-ip'`
+
+4. Load Product Inventory Information to database
+
+Create the db-load-script.sql
+
+```
+cat > db-load-script.sql <<-EOF
+USE ecomdb;
+CREATE TABLE products (id mediumint(8) unsigned NOT NULL auto_increment,Name varchar(255) default NULL,Price varchar(255) default NULL, ImageUrl varchar(255) default NULL,PRIMARY KEY (id)) AUTO_INCREMENT=1;
 
 INSERT INTO products (Name,Price,ImageUrl) VALUES ("Laptop","100","c-1.png"),("Drone","200","c-2.png"),("VR","300","c-3.png"),("Tablet","50","c-5.png"),("Watch","90","c-6.png"),("Phone Covers","20","c-7.png"),("Phone","80","c-8.png"),("Laptop","150","c-4.png");
 
 EOF
+```
 
-Run the script:
+Run sql script
+
+```
 
 sudo mysql < db-load-script.sql
+```
 
-🌐 Web Server Setup Install Required Packages sudo yum install -y httpd php php-mysqlnd
 
-Open HTTP Port sudo firewall-cmd --permanent --zone=public --add-port=80/tcp sudo firewall-cmd --reload
+## Deploy and Configure Web
 
-Configure Apache
+1. Install required packages
 
-Set PHP as the default page:
+```
+sudo yum install -y httpd php php-mysqlnd
+sudo firewall-cmd --permanent --zone=public --add-port=80/tcp
+sudo firewall-cmd --reload
+```
 
+2. Configure httpd
+
+Change `DirectoryIndex index.html` to `DirectoryIndex index.php` to make the php page the default page
+
+```
 sudo sed -i 's/index.html/index.php/g' /etc/httpd/conf/httpd.conf
+```
 
-Start Apache:
+3. Start httpd
 
-sudo systemctl start httpd sudo systemctl enable httpd
+```
+sudo systemctl start httpd
+sudo systemctl enable httpd
+```
 
-📥 Application Code
+4. Download code
 
-Install Git and clone the project:
+```
+sudo yum install -y git
+sudo git clone https://github.com/kodekloudhub/learning-app-ecommerce.git /var/www/html/
+```
 
-sudo yum install -y git sudo git clone https://github.com/kodekloudhub/learning-app-ecommerce.git /var/www/html/
+<!-- 5. Update index.php
 
-(For this repo, code is already included.)
+Update [index.php](https://github.com/kodekloudhub/learning-app-ecommerce/blob/13b6e9ddc867eff30368c7e4f013164a85e2dccb/index.php#L107) file to connect to the right database server. In this case `localhost` since the database is on the same server.
 
-🔐 Environment Configuration
+```
+sudo sed -i 's/172.20.1.101/localhost/g' /var/www/html/index.php
 
-Create a .env file in the project root:
+              <?php
+                        $link = mysqli_connect('172.20.1.101', 'ecomuser', 'ecompassword', 'ecomdb');
+                        if ($link) {
+                        $res = mysqli_query($link, "select * from products;");
+                        while ($row = mysqli_fetch_assoc($res)) { ?>
+```
 
-cat > /var/www/html/.env <<-EOF DB_HOST=localhost DB_USER=ecomuser DB_PASSWORD=ecompassword DB_NAME=ecomdb EOF
+> ON a multi-node setup remember to provide the IP address of the database server here.
+```
+sudo sed -i 's/172.20.1.101/localhost/g' /var/www/html/index.php
+```
+-->
 
-📌 Multi-node setup: Update DB_HOST with the database server IP.
+5. Create and Configure the `.env` File
 
-🧠 Update index.php
+   Create an `.env` file in the root of your project folder.
 
-Ensure index.php loads environment variables from .env:
+   ```sh
+   cat > /var/www/html/.env <<-EOF
+   DB_HOST=localhost
+   DB_USER=ecomuser
+   DB_PASSWORD=ecompassword
+   DB_NAME=ecomdb
+   EOF
 
-✅ Testing
+6. Update `index.php`
 
-Verify application access:
+   Update the `index.php` file to load the environment variables from the `.env` file and use them to connect to the database.
 
+   ```php
+   <?php
+   // Function to load environment variables from a .env file
+   function loadEnv($path)
+   {
+       if (!file_exists($path)) {
+           return false;
+       }
+
+       $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+       foreach ($lines as $line) {
+           if (strpos(trim($line), '#') === 0) {
+               continue;
+           }
+
+           list($name, $value) = explode('=', $line, 2);
+           $name = trim($name);
+           $value = trim($value);
+           putenv(sprintf('%s=%s', $name, $value));
+       }
+       return true;
+   }
+
+   // Load environment variables from .env file
+   loadEnv(__DIR__ . '/.env');
+
+   // Retrieve the database connection details from environment variables
+   $dbHost = getenv('DB_HOST');
+   $dbUser = getenv('DB_USER');
+   $dbPassword = getenv('DB_PASSWORD');
+   $dbName = getenv('DB_NAME');
+
+   ?>
+
+   ON a multi-node setup, remember to provide the IP address of the database server in the .env file.
+
+
+7. Test
+
+```
 curl http://localhost
+```
